@@ -1,0 +1,115 @@
+---
+title: "Prediction assignment"
+output: html_document
+---
+
+## Summary
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants.
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Study
+
+### Data loading
+
+```{r data loading and cleaning, message=F, warning=F,echo=T,results='hide'}
+library(data.table)
+library(caret)
+library(randomForest)
+#loading training data
+data<-fread("pml-training.csv",sep=",",dec=".",data.table=FALSE,
+    strip.white=TRUE,na.strings=c("NA","\"\"","\"","","#DIV/0!"))
+sapply(data[,8:159],function(x) noquote(x))
+for (i in 8:159) data[,i]<-as.numeric(data[,i])
+data$classe<-as.factor(data$classe)
+
+#delete all columns filled with NA
+NA_proportion<-sapply(data[,8:159],function(x) sum(is.na(x))/length(x)*100)
+filterNAs<-c(rep(FALSE,7),(NA_proportion<10),TRUE)
+data<-data[,filterNAs]
+
+#creating subsets for trainingtesting model
+inTrain<-createDataPartition(y=data$classe,p=0.6,list=FALSE)
+training<-data[inTrain,]
+testing<-data[-inTrain,]
+
+```
+```{r data synthesis}
+str(training)
+```
+
+### Model training
+
+```{r model training ,cache=TRUE, message=F, warning=F,echo=F,results='hide'}
+#using pca to decrease the number of variables
+preproc_pca<-preProcess(training[,-53],method="pca",thresh = 0.70)
+train_pca<-cbind(predict(preproc_pca,training[,-53]),training$classe)
+names(train_pca)[length(train_pca)]<-"classe"
+
+#training 3 models
+model1<-randomForest(classe~.,data=train_pca)
+model2<-train(classe~.,method="gbm",data=train_pca)
+model3<-train(classe~.,method="lda",data=train_pca)
+
+pred1_train<-predict(model1,train_pca)
+pred2_train<-predict(model2,train_pca)
+pred3_train<-predict(model3,train_pca)
+
+bind_pred_train<-data.frame(classe=train_pca$classe,v1=pred1_train,v2=pred2_train,v3=pred3_train)
+
+#training synthesis model
+model_syn<-randomForest(classe~.,data=bind_pred_train)
+pred_syn_train<-predict(model_syn,bind_pred_train)
+
+#testing model on test subset
+test_pca<-cbind(predict(preproc_pca,testing[,-53]),testing$classe)
+names(test_pca)[length(train_pca)]<-"classe"
+
+pred1_test<-predict(model1,test_pca)
+pred2_test<-predict(model2,test_pca)
+pred3_test<-predict(model3,test_pca)
+bind_pred_test<-data.frame(classe=testing$classe,v1=pred1_test,v2=pred2_test,v3=pred3_test)
+
+pred_syn_test<-predict(model_syn,bind_pred_test)
+```
+
+
+```{r model performance}
+confusionMatrix(testing$classe,pred1_test)
+confusionMatrix(testing$classe,pred2_test)
+confusionMatrix(testing$classe,pred3_test)
+confusionMatrix(testing$classe,pred_syn_test)
+```
+
+### Results
+
+```{r results, message=F, warning=F,echo=T,results='hide'}
+#loading test data
+data_test<-fread("pml-testing.csv",sep=",",dec=".",data.table=FALSE,
+    strip.white=TRUE,na.strings=c("NA","\"\"","\"","","#DIV/0!"))
+sapply(data_test[,8:159],function(x) noquote(x))
+for (i in 8:159) data_test[,i]<-as.numeric(data_test[,i])
+
+#delete all columns filled with NA
+data_test<-data_test[,filterNAs]
+
+#classifying observations
+data_test_pca<-cbind(predict(preproc_pca,data_test[,-53]),data_test$problem_id)
+names(data_test_pca)[length(train_pca)]<-"classe"
+
+pred1_test<-predict(model1,data_test_pca)
+pred2_test<-predict(model2,data_test_pca)
+pred3_test<-predict(model3,data_test_pca)
+bind_pred_test<-data.frame(classe=data_test_pca$classe,v1=pred1_test,v2=pred2_test,v3=pred3_test)
+
+#printing solution
+pred_syn_test<-predict(model_syn,bind_pred_test)
+problem_solution<-data.frame(problem_id=data_test$problem_id,classe=pred_syn_test)
+print(problem_solution)
+```
+
+## Conclusion 
+We used 3 models to predict the output for test data.  
+When testing the model the accuracy was 94%, it seems to be OK!  
+Random forests perform the best here.
