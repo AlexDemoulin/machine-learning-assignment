@@ -41,7 +41,7 @@ str(training)
 
 ### Model training
 
-```{r model training ,cache=TRUE, message=F, warning=F,echo=F,results='hide'}
+```{r model training ,cache=TRUE, message=F, warning=F,echo=T,results='hide'}
 #using pca to decrease the number of variables
 preproc_pca<-preProcess(training[,-53],method="pca",thresh = 0.70)
 train_pca<-cbind(predict(preproc_pca,training[,-53]),training$classe)
@@ -106,10 +106,13 @@ bind_pred_test<-data.frame(classe=data_test_pca$classe,v1=pred1_test,v2=pred2_te
 #printing solution
 pred_syn_test<-predict(model_syn,bind_pred_test)
 problem_solution<-data.frame(problem_id=data_test$problem_id,classe=pred_syn_test)
-print(problem_solution)
 ```
 
+```{r solution, message=F, warning=F,echo=T}
+print(problem_solution)
+```
+#loading test data
 ## Conclusion 
 We used 3 models to predict the output for test data.  
-When testing the model the accuracy was 94%, it seems to be OK!  
+When testing the model the accuracy was 92%, it seems to be OK!  
 Random forests perform the best here.
